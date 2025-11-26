@@ -47,7 +47,7 @@ func signPath(path string, os string, version string) (k string, v string) {
 func GetApi(rawUrl string) string {
 	u, _ := url.Parse(rawUrl)
 	query := u.Query()
-	query.Add(signPath(u.Path, "web", "3"))
+	query.Add(signPath(u.Path, "android", "3"))
 	u.RawQuery = query.Encode()
 	return u.String()
 }
@@ -62,7 +62,7 @@ func (d *Pan123Share) request(url string, method string, callback base.ReqCallba
 		"referer":       "https://www.123pan.com/",
 		"authorization": "Bearer " + d.AccessToken,
 		"user-agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) openlist-client",
-		"platform":      "web",
+		"platform":      "android",
 		"app-version":   "3",
 		//"user-agent":    base.UserAgent,
 	})
