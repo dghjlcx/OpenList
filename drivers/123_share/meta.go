@@ -6,12 +6,12 @@ import (
 )
 
 type Addition struct {
-    ShareKey string `json:"sharekey" required:"true"`
-    SharePwd string `json:"sharepassword"`
-    driver.RootID
-    AccessToken string `json:"accesstoken" type:"text"`
-    Platform    string `json:"platform" type:"string" default:"web" help:"Platform header (e.g., 'android' to bypass limits)"`  // 如果未加，从之前步骤
-    UserAgent   string `json:"useragent" type:"text" default:"Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) openlist-client" help:"Custom User-Agent for API requests (grab from Android App for bypass)"`  // ← 新增
+	ShareKey string `json:"sharekey" required:"true"`
+	SharePwd string `json:"sharepassword"`
+	driver.RootID
+	//OrderBy        string `json:"order_by" type:"select" options:"file_name,size,update_at" default:"file_name"`
+	//OrderDirection string `json:"order_direction" type:"select" options:"asc,desc" default:"asc"`
+	AccessToken string `json:"accesstoken" type:"text"`
 }
 
 var config = driver.Config{
