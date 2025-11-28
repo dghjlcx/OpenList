@@ -58,13 +58,12 @@ func (d *Pan123Share) request(url string, method string, callback base.ReqCallba
 	}
 	req := base.RestyClient.R()
 	req.SetHeaders(map[string]string{
-		"origin":        "https://www.123pan.com",
-		"referer":       "https://www.123pan.com/",
-		"authorization": "Bearer " + d.AccessToken,
-		"user-agent":    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) openlist-client",
-		"platform":      "web",
-		"app-version":   "3",
-		//"user-agent":    base.UserAgent,
+	    "origin":        "https://www.123pan.com",
+	    "referer":       "https://www.123pan.com/",
+	    "authorization": "Bearer " + d.AccessToken,
+	    "user-agent":    d.UserAgent,  // ← 动态：从配置取，默认原 UA
+	    "platform":      d.Platform,   // 已动态
+	    "app-version":   "3",
 	})
 	if callback != nil {
 		callback(req)
