@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"sync"
 	"time"
 
@@ -37,8 +38,6 @@ func (d *Pan123Share) GetAddition() driver.Additional {
 }
 
 func (d *Pan123Share) Init(ctx context.Context) error {
-	// TODO login / refresh token
-	//op.MustSaveDriverStorage(d)
 	return nil
 }
 
@@ -57,7 +56,6 @@ func (d *Pan123Share) Drop(ctx context.Context) error {
 }
 
 func (d *Pan123Share) List(ctx context.Context, dir model.Obj, args model.ListArgs) ([]model.Obj, error) {
-	// TODO return the files list, required
 	files, err := d.getFiles(ctx, dir.GetID())
 	if err != nil {
 		return nil, err
@@ -67,8 +65,8 @@ func (d *Pan123Share) List(ctx context.Context, dir model.Obj, args model.ListAr
 	})
 }
 
+// 关键修改：支持分片下载绕过 1GB 限制
 func (d *Pan123Share) Link(ctx context.Context, file model.Obj, args model.LinkArgs) (*model.Link, error) {
-	// TODO return link of file, required
 	if f, ok := file.(File); ok {
 		data := base.Json{
 			"shareKey":  d.ShareKey,
@@ -78,90 +76,92 @@ func (d *Pan123Share) Link(ctx context.Context, file model.Obj, args model.LinkA
 			"s3keyFlag": f.S3KeyFlag,
 			"size":      f.Size,
 		}
+
 		resp, err := d.request(DownloadInfo, http.MethodPost, func(req *resty.Request) {
 			req.SetBody(data)
 		}, nil)
 		if err != nil {
 			return nil, err
 		}
+
 		downloadUrl := utils.Json.Get(resp, "data", "DownloadURL").ToString()
+		if downloadUrl == "" {
+			return nil, fmt.Errorf("DownloadURL is empty")
+		}
+
 		ou, err := url.Parse(downloadUrl)
 		if err != nil {
 			return nil, err
 		}
+
+		// 处理 base64 加密的 params 参数
 		u_ := ou.String()
 		nu := ou.Query().Get("params")
 		if nu != "" {
-			du, _ := base64.StdEncoding.DecodeString(nu)
-			u, err := url.Parse(string(du))
-			if err != nil {
-				return nil, err
+			du, err := base64.StdEncoding.DecodeString(nu)
+			if err == nil {
+				if u, err := url.Parse(string(du)); err == nil {
+					u_ = u.String()
+				}
 			}
-			u_ = u.String()
 		}
 
-		log.Debug("download url: ", u_)
-		res, err := base.NoRedirectClient.R().SetHeader("Referer", "https://www.123pan.com/").Get(u_)
-		if err != nil {
-			return nil, err
-		}
-		log.Debug(res.String())
-		link := model.Link{
+		log.Debug("final download url: ", u_)
+
+		// 关键：构造支持 Range 的 Link
+		link := &model.Link{
 			URL: u_,
+			Header: http.Header{
+				"Referer": []string{"https://www.123pan.com/"},
+			},
 		}
-		log.Debugln("res code: ", res.StatusCode())
-		if res.StatusCode() == 302 {
-			link.URL = res.Header().Get("location")
-		} else if res.StatusCode() < 300 {
-			link.URL = utils.Json.Get(res.Body(), "data", "redirect_url").ToString()
+
+		// 强制声明支持分片下载（OpenList 下载器看到这个就会自动多线程）
+		link.Header.Set("Accept-Ranges", "bytes")
+
+		// 强烈建议加上 Content-Length，让进度条准确
+		if f.Size > 0 {
+			link.Header.Set("Content-Length", strconv.FormatInt(f.Size, 10))
 		}
-		link.Header = http.Header{
-			"Referer": []string{fmt.Sprintf("%s://%s/", ou.Scheme, ou.Host)},
+
+		// 可选：加上 Content-Type（部分播放器需要）
+		if mime := utils.GetMimeType(f.GetName()); mime != "" {
+			link.Header.Set("Content-Type", mime)
 		}
-		return &link, nil
+
+		return link, nil
 	}
 	return nil, fmt.Errorf("can't convert obj")
 }
 
 func (d *Pan123Share) MakeDir(ctx context.Context, parentDir model.Obj, dirName string) error {
-	// TODO create folder, optional
 	return errs.NotSupport
 }
 
 func (d *Pan123Share) Move(ctx context.Context, srcObj, dstDir model.Obj) error {
-	// TODO move obj, optional
 	return errs.NotSupport
 }
 
 func (d *Pan123Share) Rename(ctx context.Context, srcObj model.Obj, newName string) error {
-	// TODO rename obj, optional
 	return errs.NotSupport
 }
 
 func (d *Pan123Share) Copy(ctx context.Context, srcObj, dstDir model.Obj) error {
-	// TODO copy obj, optional
 	return errs.NotSupport
 }
 
 func (d *Pan123Share) Remove(ctx context.Context, obj model.Obj) error {
-	// TODO remove obj, optional
 	return errs.NotSupport
 }
 
 func (d *Pan123Share) Put(ctx context.Context, dstDir model.Obj, stream model.FileStreamer, up driver.UpdateProgress) error {
-	// TODO upload file, optional
 	return errs.NotSupport
 }
-
-//func (d *Pan123Share) Other(ctx context.Context, args model.OtherArgs) (interface{}, error) {
-//	return nil, errs.NotSupport
-//}
 
 func (d *Pan123Share) APIRateLimit(ctx context.Context, api string) error {
 	value, _ := d.apiRateLimit.LoadOrStore(api,
 		rate.NewLimiter(rate.Every(700*time.Millisecond), 1))
 	limiter := value.(*rate.Limiter)
-
 	return limiter.Wait(ctx)
 }
 
