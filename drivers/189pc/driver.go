@@ -428,3 +428,85 @@ func (y *Cloud189PC) GetDetails(ctx context.Context) (*model.StorageDetails, err
 		DiskUsage: driver.DiskUsageFromUsedAndTotal(used, total),
 	}, nil
 }
+
+// ListShareFiles 公开方法：列出分享目录内容（供 189Share 驱动调用）
+func (y *Cloud189PC) ListShareFiles(ctx context.Context, shareID, folderID, accessCode string) ([]model.Obj, error) {
+	url := "https://cloud.189.cn/api/open/share/listShareDir.action"
+
+	var resp struct {
+		FileListAO struct {
+			FileList   []Cloud189File   `json:"fileList"`
+			FolderList []Cloud189Folder `json:"folderList"`
+		} `json:"fileListAO"`
+		ResCode    int    `json:"res_code"`
+		ResMessage string `json:"res_message"`
+	}
+
+	_, err := y.get(url, func(r *resty.Request) {
+		r.SetContext(ctx)
+		r.SetQueryParams(map[string]string{
+			"shareId":    shareID,
+			"folderId":   folderID == "" || folderID == "/" ? "0" : folderID,
+			"pageNum":    "1",
+			"pageSize":   "1000",
+			"iconOption": "5",
+		})
+		if accessCode != "" {
+			r.SetQueryParam("accessCode", accessCode)
+		}
+	}, &resp)
+	if err != nil {
+		return nil, err
+	}
+	if resp.ResCode != 0 {
+		return nil, fmt.Errorf("189分享接口错误: %s", resp.ResMessage)
+	}
+
+	res := make([]model.Obj, 0, 100)
+	for i := range resp.FileListAO.FolderList {
+		res = append(res, &resp.FileListAO.FolderList[i])
+	}
+	for i := range resp.FileListAO.FileList {
+		res = append(res, &resp.FileListAO.FileList[i])
+	}
+	return res, nil
+}
+
+// GetShareDownloadUrl 公开方法：获取分享文件直链
+func (y *Cloud189PC) GetShareDownloadUrl(ctx context.Context, shareID, fileID string) (*model.Link, error) {
+	url := "https://cloud.189.cn/api/open/share/getShareDownloadUrl.action"
+
+	var resp struct {
+		FileDownloadUrl string `json:"fileDownloadUrl"`
+		ResCode         int    `json:"res_code"`
+	}
+
+	_, err := y.get(url, func(r *resty.Request) {
+		r.SetContext(ctx)
+		r.SetQueryParams(map[string]string{
+			"shareId": shareID,
+			"fileId":  fileID,
+		})
+	}, &resp)
+	if err != nil {
+		return nil, err
+	}
+	if resp.ResCode != 0 {
+		return nil, fmt.Errorf("获取分享直链失败")
+	}
+
+	return &model.Link{
+		URL: resp.FileDownloadUrl,
+		Header: http.Header{
+			"User-Agent": []string{base.UserAgent},
+		},
+	}, nil
+}
+
+// GetTokenInfo 公开获取 token（供引用）
+func (y *Cloud189PC) GetTokenInfo() *AppSessionResp {
+	if y.ref != nil {
+		return y.ref.getTokenInfo()
+	}
+	return y.tokenInfo
+}
