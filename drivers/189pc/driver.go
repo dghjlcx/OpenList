@@ -442,11 +442,16 @@ func (y *Cloud189PC) ListShareFiles(ctx context.Context, shareID, folderID, acce
 		ResMessage string `json:"res_message"`
 	}
 
+	fid := folderID
+	if fid == "" || fid == "/" {
+		fid = "0"
+	}
+
 	_, err := y.get(url, func(r *resty.Request) {
 		r.SetContext(ctx)
 		r.SetQueryParams(map[string]string{
 			"shareId":    shareID,
-			"folderId":   folderID == "" || folderID == "/" ? "0" : folderID,
+			"folderId":   fid,
 			"pageNum":    "1",
 			"pageSize":   "1000",
 			"iconOption": "5",
