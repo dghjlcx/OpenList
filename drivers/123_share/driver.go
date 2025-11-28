@@ -39,6 +39,12 @@ func (d *Pan123Share) GetAddition() driver.Additional {
 func (d *Pan123Share) Init(ctx context.Context) error {
 	// TODO login / refresh token
 	//op.MustSaveDriverStorage(d)
+	if d.UserAgent == "" {
+        d.UserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) openlist-client"  // ← 新增：fallback
+    }
+    if d.Platform == "" {
+        d.Platform = "web"  // 如果已加
+    }
 	return nil
 }
 
